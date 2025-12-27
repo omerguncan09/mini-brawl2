@@ -108,11 +108,12 @@ button{
 </div>
 
 <!-- CONTROLS -->
-<div id="moveJoy" class="joy"><div class="knob"></div></div>
-<div id="aimJoy" class="joy"><div class="knob"></div></div>
-
-<button id="gadget" class="action">🟢</button>
-<button id="super" class="action">🟡</button>
+<div id="controls" style="display:none">
+  <div id="moveJoy" class="joy"><div class="knob"></div></div>
+  <div id="aimJoy" class="joy"><div class="knob"></div></div>
+  <button id="gadget" class="action">🟢</button>
+  <button id="super" class="action">🟡</button>
+</div>
 
 <!-- THREE.JS -->
 <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
@@ -166,11 +167,13 @@ function startGame(){
  gameState="playing";
  document.getElementById("matchmaking").style.display="none";
  document.getElementById("hud").style.display="block";
+ document.getElementById("controls").style.display="block";
  initGame();
 }
 
 function endGame(text){
  gameState="gameover";
+ document.getElementById("controls").style.display="none";
  document.getElementById("gameover").style.display="flex";
  document.getElementById("goText").innerText=text;
 }
