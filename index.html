@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Mini Brawl Mobile</title>
+<style>
+body { margin:0; overflow:hidden; background:#000; touch-action:none; }
+#ui { position:fixed; top:10px; left:10px; color:white; font-family:Arial; }
+.joystick {
+  position:fixed; width:120px; height:120px;
+  border-radius:50%; background:rgba(255,255,255,0.1);
+}
+.knob {
+  width:40px; height:40px; background:white;
+  border-radius:50%; position:absolute; left:40px; top:40px;
+}
+#moveJoy { left:20px; bottom:20px; }
+#aimJoy { right:20px; bottom:20px; }
+#dead {
+  position:fixed; inset:0; display:none;
+  background:rgba(0,0,0,.8); color:white;
+  font-size:40px; font-family:Arial;
+  align-items:center; justify-content:center; flex-direction:column;
+}
+</style>
+</head>
+<body>
+
+<div id="ui">HP: <span id="hp">100</span></div>
+<div id="dead">YOU DIED<br><small>Refresh to restart</small></div>
+
+<div id="moveJoy" class="joystick"><div class="knob"></div></div>
+<div id="aimJoy" class="joystick"><div class="knob"></div></div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.158/build/three.min.js"></script>
+<script>
+/* ===== SCENE ===== */
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1b1b1b);
+
+const camera = new THREE.OrthographicCamera(-25,25,18,-18,0.1,100);
+camera.position.set(0,30,0);
+camera.lookAt(0,0,0);
+
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(innerWidth, innerHeight);
+document.body.appendChild(renderer.domElement);
+scene.add(new THREE.AmbientLight(0xffffff,1));
+
+/* ===== FLOOR ===== */
+const floor = new THREE.Mesh(
+  new THREE.PlaneGeometry(100,100),
+  new THREE.MeshBasicMaterial({color:0x2f7d32})
+);
+floor.rotation.x = -Math.PI/2;
+scene.add(floor);
+
+/* ===== MAP WALLS ===== */
+const walls = [];
+function wall(x,z,w,h){
+  const m = new THREE.Mesh(
+    new THREE.BoxGeometry(w,3,h),
+    new THREE.MeshBasicMaterial({color:0x555555})
+  );
+  m.position.set(x,1.5,z);
+  scene.add(m);
+  walls.push(m);
+}
+wall(0,0,4,20);
+wall(-15,5,10,4);
+wall(15,-5,10,4);
+wall(0,15,20,4);
+
+/* ===== PLAYER ===== */
+const player = new THREE.Mesh(
+  new THREE.CylinderGeometry(1,1,1,16),
+  new THREE.MeshBasicMaterial({color:0x00e5ff})
+);
+player.position.y = 0.5;
+scene.add(player);
+
+let hp = 100;
+
+/* ===== BULLETS ===== */
+const bullets = [];
+function shoot(dir){
+  const b = new THREE.Mesh(
+    new THREE.SphereGeometry(0.3,8,8),
+    new THREE.MeshBasicMaterial({color:0xffeb3b})
+  );
+  b.position.copy(player.position);
+  b.userData.vel = dir.multiplyScalar(0.9);
+  scene.add(b);
+  bullets.push(b);
+}
+
+/* ===== ENEMIES ===== */
+const enemies = [];
+function spawnEnemy(){
+  const e = new THREE.Mesh(
+    new THREE.BoxGeometry(2,2,2),
+    new THREE.MeshBasicMaterial({color:0xff4444})
+  );
+  e.position.set((Math.random()-0.5)*40,1,(Math.random()-0.5)*40);
+  scene.add(e);
+  enemies.push(e);
+}
+setInterval(spawnEnemy,1500);
+
+/* ===== MOBILE JOYSTICKS ===== */
+function joystick(el){
+  let active=false, dx=0, dy=0;
+  const knob = el.querySelector(".knob");
+  el.addEventListener("touchstart", e=>active=true);
+  el.addEventListener("touchmove", e=>{
+    if(!active) return;
+    const r = el.getBoundingClientRect();
+    const t = e.touches[0];
+    dx = t.clientX - (r.left+r.width/2);
+    dy = t.clientY - (r.top+r.height/2);
+    dx = Math.max(-40,Math.min(40,dx));
+    dy = Math.max(-40,Math.min(40,dy));
+    knob.style.transform = `translate(${dx}px,${dy}px)`;
+  });
+  el.addEventListener("touchend", ()=>{
+    active=false; dx=dy=0;
+    knob.style.transform="";
+  });
+  return ()=>({x:dx/40,y:dy/40});
+}
+const moveInput = joystick(document.getElementById("moveJoy"));
+const aimInput  = joystick(document.getElementById("aimJoy"));
+
+let shootCooldown = 0;
+
+/* ===== LOOP ===== */
+function animate(){
+  requestAnimationFrame(animate);
+
+  if(hp>0){
+    const m = moveInput();
+    player.position.x += m.x*0.3;
+    player.position.z += m.y*0.3;
+
+    const a = aimInput();
+    if(Math.hypot(a.x,a.y)>0.3 && shootCooldown<=0){
+      shoot(new THREE.Vector3(a.x,0,a.y).normalize());
+      shootCooldown = 20;
+    }
+  }
+
+  shootCooldown--;
+
+  bullets.forEach((b,i)=>{
+    b.position.add(b.userData.vel);
+    walls.forEach(w=>{
+      if(b.position.distanceTo(w.position)<2){
+        scene.remove(b); bullets.splice(i,1);
+      }
+    });
+  });
+
+  enemies.forEach(e=>{
+    const d = player.position.clone().sub(e.position).normalize();
+    e.position.add(d.multiplyScalar(0.04));
+    if(e.position.distanceTo(player.position)<1.6){
+      hp-=0.4;
+      document.getElementById("hp").textContent = Math.max(0,hp|0);
+      if(hp<=0) document.getElementById("dead").style.display="flex";
+    }
+  });
+
+  renderer.render(scene,camera);
+}
+animate();
+</script>
+</body>
+</html>
