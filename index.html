@@ -102,6 +102,19 @@ button{
 </div>
 
 <!-- HUD -->
+<div id="debug" style="
+ position:fixed;
+ top:10px;
+ left:10px;
+ color:white;
+ background:rgba(0,0,0,0.6);
+ padding:6px 10px;
+ font-size:12px;
+ z-index:9999;
+">
+DEBUG: READY
+</div>
+
 <div id="hud" style="display:none">
  HP: <span id="hp">100</span>
  <span id="score"></span>
@@ -142,30 +155,10 @@ let gasRadius=40;
 /* =========================
    UI FLOW
 ========================= */
-function selectMode(m){
- mode=m;
- gameState="matchmaking";
- document.getElementById("lobby").style.display="none";
- document.getElementById("matchmaking").style.display="flex";
- fakeMatchmaking();
-}
-
-function fakeMatchmaking(){
- let count=1;
- const lbl=document.getElementById("mmCount");
- const int=setInterval(()=>{
-  count++;
-  lbl.innerText=count+" / 9";
-  if(count>=9){
-   clearInterval(int);
-   startGame();
-  }
- },300);
-}
-
 function startGame(){
  gameState="playing";
  document.getElementById("matchmaking").style.display="none";
+ document.getElementById("lobby").style.display="none";
  document.getElementById("hud").style.display="block";
  document.getElementById("controls").style.display="block";
  initGame();
@@ -174,13 +167,29 @@ function startGame(){
 function endGame(text){
  gameState="gameover";
  document.getElementById("controls").style.display="none";
+ document.getElementById("hud").style.display="none";
  document.getElementById("gameover").style.display="flex";
  document.getElementById("goText").innerText=text;
 }
 
 function backToLobby(){
- location.reload(); // safe reset
+ gameState="lobby";
+ document.getElementById("gameover").style.display="none";
+ document.getElementById("lobby").style.display="flex";
 }
+
+/* =========================
+   GAME MODES
+========================= */
+
+let currentMode = "showdown";
+
+function setMode(mode){
+ currentMode = mode;
+ document.getElementById("matchmaking").style.display = "flex";
+ setTimeout(startGame, 1500);
+}
+
 /* =========================
    JOYSTICK SYSTEM
 ========================= */
