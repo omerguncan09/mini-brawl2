@@ -32,8 +32,9 @@ button{
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
 <script>
+/* ---------- SETUP ---------- */
 const scene=new THREE.Scene();
-scene.background=new THREE.Color(0xe6d3a3); // desert sky
+scene.background=new THREE.Color(0xe6d3a3);
 
 const camera=new THREE.PerspectiveCamera(60,innerWidth/innerHeight,.1,100);
 camera.position.set(0,12,18);
@@ -44,7 +45,7 @@ document.body.appendChild(renderer.domElement);
 
 scene.add(new THREE.AmbientLight(0xffffff,1));
 
-// desert floor
+/* ---------- MAP ---------- */
 const floor=new THREE.Mesh(
  new THREE.PlaneGeometry(60,60),
  new THREE.MeshBasicMaterial({color:0xd2b48c})
@@ -52,7 +53,7 @@ const floor=new THREE.Mesh(
 floor.rotation.x=-Math.PI/2;
 scene.add(floor);
 
-// player
+/* ---------- PLAYER ---------- */
 const player=new THREE.Mesh(
  new THREE.CylinderGeometry(1,1,1.5,16),
  new THREE.MeshBasicMaterial({color:0x00ffff})
@@ -66,9 +67,24 @@ let joyX=0,joyY=0;
 let dashVX=0,dashVZ=0;
 let dashing=false;
 
+/* ---------- ARRAYS ---------- */
 const enemies=[];
+const bullets=[];
+const enemyBullets=[];
+const walls=[];
 
-// joystick
+/* ---------- CACTUSES (WALLS) ---------- */
+for(let i=0;i<8;i++){
+ const c=new THREE.Mesh(
+  new THREE.CylinderGeometry(1,1.2,4,8),
+  new THREE.MeshBasicMaterial({color:0x2e8b57})
+ );
+ c.position.set((Math.random()-0.5)*45,2,(Math.random()-0.5)*45);
+ scene.add(c);
+ walls.push(c);
+}
+
+/* ---------- JOYSTICK ---------- */
 const joy=document.getElementById("joy");
 const knob=joy.querySelector(".knob");
 joy.addEventListener("touchmove",e=>{
@@ -84,24 +100,24 @@ joy.addEventListener("touchend",()=>{
  joyX=joyY=0;knob.style.transform="";
 });
 
-// spawn enemies
+/* ---------- ENEMIES ---------- */
 for(let i=0;i<5;i++){
  const e=new THREE.Mesh(
   new THREE.BoxGeometry(2,2,2),
   new THREE.MeshBasicMaterial({color:0xff3333})
  );
  e.position.set((Math.random()-0.5)*40,1,(Math.random()-0.5)*40);
+ e.hp=40;
  scene.add(e);
  enemies.push(e);
 }
 
-// gadget (heal)
+/* ---------- BUTTONS ---------- */
 document.getElementById("gadget").onclick=()=>{
  hp=Math.min(100,hp+25);
  document.getElementById("hp").innerText="HP: "+hp;
 };
 
-// super dash (FIXED)
 document.getElementById("super").onclick=()=>{
  if(dashing) return;
  dashing=true;
@@ -114,20 +130,53 @@ document.getElementById("super").onclick=()=>{
  },250);
 };
 
-// game loop
+/* ---------- SHOOTING ---------- */
+setInterval(()=>{
+ const b=new THREE.Mesh(
+  new THREE.SphereGeometry(.3),
+  new THREE.MeshBasicMaterial({color:0x00ffff})
+ );
+ b.position.copy(player.position);
+ b.dir=new THREE.Vector3(0,0,-1);
+ scene.add(b);
+ bullets.push(b);
+},500);
+
+/* ---------- ENEMY SHOOT ---------- */
+setInterval(()=>{
+ enemies.forEach(e=>{
+  const b=new THREE.Mesh(
+   new THREE.SphereGeometry(.3),
+   new THREE.MeshBasicMaterial({color:0xff0000})
+  );
+  b.position.copy(e.position);
+  b.dir=player.position.clone().sub(e.position).normalize();
+  scene.add(b);
+  enemyBullets.push(b);
+ });
+},1200);
+
+/* ---------- GAME LOOP ---------- */
 function loop(){
  requestAnimationFrame(loop);
 
  // movement
- if(dashing){
-  player.position.x+=dashVX;
-  player.position.z+=dashVZ;
- }else{
-  player.position.x+=joyX*speed;
-  player.position.z+=joyY*speed;
+ let nx=player.position.x+(dashing?dashVX:joyX*speed);
+ let nz=player.position.z+(dashing?dashVZ:joyY*speed);
+
+ // wall collision
+ let blocked=false;
+ walls.forEach(w=>{
+  if(new THREE.Vector3(nx,player.position.y,nz).distanceTo(w.position)<2){
+   blocked=true;
+  }
+ });
+ if(!blocked){
+  player.position.x=nx;
+  player.position.z=nz;
  }
 
- // enemy AI (chase player)
+ // enemies chase
  enemies.forEach(e=>{
   const dir=player.position.clone().sub(e.position);
   const dist=dir.length();
@@ -139,7 +188,26 @@ function loop(){
   }
  });
 
- // camera follow (smooth)
+ // bullets
+ bullets.forEach((b,i)=>{
+  b.position.add(b.dir.clone().multiplyScalar(.6));
+  walls.forEach(w=>{
+   if(b.position.distanceTo(w.position)<1){
+    scene.remove(b);bullets.splice(i,1);
+   }
+  });
+ });
+
+ enemyBullets.forEach((b,i)=>{
+  b.position.add(b.dir.clone().multiplyScalar(.4));
+  if(b.position.distanceTo(player.position)<1.2){
+   hp-=5;
+   document.getElementById("hp").innerText="HP: "+hp;
+   scene.remove(b);enemyBullets.splice(i,1);
+  }
+ });
+
+ // camera
  camera.position.x+=(player.position.x-camera.position.x)*0.05;
  camera.position.z+=(player.position.z+18-camera.position.z)*0.05;
  camera.lookAt(player.position);
